@@ -66,7 +66,8 @@ ACR_FEED_PROFILE    = 600
 ACR_FEED_PLUNGE     = 250
 ACR_DEPTH_PER_PASS  = 1.5
 
-SAFE_Z = 5.0
+SAFE_Z = 5.0          # rapid clearance during the job
+POST_JOB_Z = 25.0     # higher lift at end-of-job, in case workpiece moved
 
 
 # ---------------------------------------------------------------------------
@@ -330,60 +331,43 @@ def signed_area(poly):
 
 
 def offset_polyline_outward(poly, distance):
-    """Offset a closed polyline outward by `distance` (in machine coordinates,
-    i.e. after the SVG->machine transform).  Outward is determined by winding:
-    polylines traced CCW in math coords are offset to the LEFT of motion,
-    those traced CW are offset to the RIGHT.
+    """Offset a closed polyline outward by `distance` (machine coords).
 
-    Each vertex moves along the bisector of its two adjacent edges.  Adequate
-    when edges are short (we feed it a flattened path with ~0.25mm step)."""
-    # drop near-coincident consecutive points (including the closing vertex)
+    Uses Shapely's polygon buffer with round joins, so sharp tangent
+    breaks in the source path (e.g. main-circle to tab-neck transitions
+    on the plate outline) produce a clean bit-radius arc at the corner
+    instead of the inward swing the old bisector method would create.
+    """
+    from shapely.geometry import Polygon
+
+    # drop near-coincident consecutive points so Polygon doesn't reject
     eps = 1e-4
     verts = []
     for p in poly:
-        if not verts or math.hypot(p[0] - verts[-1][0], p[1] - verts[-1][1]) > eps:
+        if not verts or math.hypot(p[0] - verts[-1][0],
+                                   p[1] - verts[-1][1]) > eps:
             verts.append(p)
-    # close-loop dedupe: drop final vertex if same as first
     if len(verts) > 1 and math.hypot(verts[0][0] - verts[-1][0],
                                      verts[0][1] - verts[-1][1]) < eps:
         verts.pop()
-    n = len(verts)
-    if n < 3:
+    if len(verts) < 3:
         return list(poly)
-    # winding -> outward sign
-    # in machine coords with Y up, CCW has positive signed area;
-    # outward for CCW = left of motion = rotate edge direction +90 deg
-    # outward for CW = right = -90 deg
-    area = signed_area(verts)
-    sign = 1.0 if area > 0 else -1.0  # +1 = CCW, -1 = CW
-    out = []
-    for i in range(n):
-        x0, y0 = verts[(i - 1) % n]
-        x1, y1 = verts[i]
-        x2, y2 = verts[(i + 1) % n]
-        # incoming and outgoing edge normals (outward)
-        ex1, ey1 = x1 - x0, y1 - y0
-        ex2, ey2 = x2 - x1, y2 - y1
-        L1 = math.hypot(ex1, ey1) or 1.0
-        L2 = math.hypot(ex2, ey2) or 1.0
-        # rotate by +90deg for CCW (sign=+1) means (dx,dy) -> (-dy, dx)
-        nx1 = -sign * ey1 / L1
-        ny1 =  sign * ex1 / L1
-        nx2 = -sign * ey2 / L2
-        ny2 =  sign * ex2 / L2
-        bx = nx1 + nx2
-        by = ny1 + ny2
-        Lb = math.hypot(bx, by)
-        if Lb < 1e-9:
-            # straight segment; just use one normal
-            bx, by = nx1, ny1
-            Lb = math.hypot(bx, by) or 1.0
-        # for sharp bisectors, scale to maintain perpendicular distance
-        dot = (bx * nx1 + by * ny1) / Lb
-        scale = distance / max(dot, 0.05)
-        out.append((x1 + bx / Lb * scale, y1 + by / Lb * scale))
-    out.append(out[0])
-    return out
+
+    src = Polygon(verts)
+    if not src.is_valid:
+        src = src.buffer(0)  # fix self-touches
+
+    # join_style=1 (round) — corner is swept by a bit-radius arc
+    # resolution=8 -> ~32 segments per full circle of arc, plenty
+    expanded = src.buffer(distance, join_style=1, resolution=8)
+
+    # expanded may be a Polygon or a MultiPolygon; pick the largest.
+    if expanded.geom_type == "MultiPolygon":
+        expanded = max(expanded.geoms, key=lambda g: g.area)
+    coords = list(expanded.exterior.coords)
+    # shapely returns a closed ring (first == last); leave it that way to
+    # match the old contract.
+    return coords
 
 
 def paths_with_stroke(svg_path, color):
@@ -433,7 +417,7 @@ def footer():
     return [
         "",
         "M5          ; spindle off",
-        f"G0 Z{SAFE_Z}",
+        f"G0 Z{POST_JOB_Z}    ; high lift in case the workpiece moved",
         "G0 X0 Y0",
         "",
     ]

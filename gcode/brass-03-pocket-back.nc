@@ -537,6 +537,6 @@ G2 I-34.0520 J0 F200
 G1 X0 Y0 F200
 
 M5          ; spindle off
-G0 Z5.0
+G0 Z25.0    ; high lift in case the workpiece moved
 G0 X0 Y0
 

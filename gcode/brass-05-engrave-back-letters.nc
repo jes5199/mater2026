@@ -7639,6 +7639,6 @@ X-12.9540 Y-18.1198
 G0 Z5.0
 
 M5          ; spindle off
-G0 Z5.0
+G0 Z25.0    ; high lift in case the workpiece moved
 G0 X0 Y0
 

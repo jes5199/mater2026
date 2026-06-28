@@ -4348,6 +4348,6 @@ G1 X-37.7758 Y0.6068 F150
 G0 Z5.0
 
 M5          ; spindle off
-G0 Z5.0
+G0 Z25.0    ; high lift in case the workpiece moved
 G0 X0 Y0
 
