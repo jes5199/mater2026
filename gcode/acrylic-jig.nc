@@ -3,7 +3,7 @@
 ; Material: 6mm acrylic over sacrificial MDF
 ; X0 Y0 = plate center, Z0 = top surface of acrylic
 ; Depth: 6.5mm (through acrylic, 0.5mm into MDF)
-; Passes: 1.5mm each, spring pass at full depth
+; Center hole 3.3mm (clearance fit for M3 clevis pin)
 
 G21       ; metric
 G90       ; absolute
@@ -11,101 +11,85 @@ G17       ; XY plane for arcs
 M3 S20000 ; spindle on, 20000 RPM
 G4 P2     ; wait for spindle spin-up
 
-; -----------------------------------------------
-; CENTER HOLE  3mm diameter  orbit radius 0.5mm
-; -----------------------------------------------
-G0 Z5
+; ====================================================
+; CENTER HOLE  3.3mm diameter  orbit radius 0.65mm
+; center: X0 Y0
+; ====================================================
+G0 Z5.0
 G0 X0 Y0
-G1 Z-1.5 F250
-G1 X0.5 F700
-G2 I-0.5 J0
-G1 X0
-G1 Z-3.0 F250
-G1 X0.5 F700
-G2 I-0.5 J0
-G1 X0
-G1 Z-4.5 F250
-G1 X0.5 F700
-G2 I-0.5 J0
-G1 X0
-G1 Z-6.5 F250
-G1 X0.5 F700
-G2 I-0.5 J0
-G2 I-0.5 J0   ; spring pass
-G1 X0
-G0 Z5
+G0 X0.65 Y0
+G1 Z-1.500 F250  ; pass 1
+G2 I-0.65 J0 F700
+G1 Z-3.000 F250  ; pass 2
+G2 I-0.65 J0 F700
+G1 Z-4.500 F250  ; pass 3
+G2 I-0.65 J0 F700
+G1 Z-6.000 F250  ; pass 4
+G2 I-0.65 J0 F700
+G1 Z-6.500 F250  ; pass 5
+G2 I-0.65 J0 F700
+G2 I-0.65 J0 F700  ; spring pass
+G0 Z5.0
 
-; -----------------------------------------------
-; TAB CENTER HOLE  6mm diameter  orbit radius 2mm
-; position: X0 Y50.864
-; -----------------------------------------------
+; ====================================================
+; TAB CENTER  6.0mm diameter  orbit radius 2.0mm
+; center: X0 Y50.864
+; ====================================================
+G0 Z5.0
 G0 X0 Y50.864
-G1 Z-1.5 F250
-G1 X2 F700
-G2 I-2 J0
-G1 X0
-G1 Z-3.0 F250
-G1 X2 F700
-G2 I-2 J0
-G1 X0
-G1 Z-4.5 F250
-G1 X2 F700
-G2 I-2 J0
-G1 X0
-G1 Z-6.5 F250
-G1 X2 F700
-G2 I-2 J0
-G2 I-2 J0     ; spring pass
-G1 X0
-G0 Z5
+G0 X2.0 Y50.864
+G1 Z-1.500 F250  ; pass 1
+G2 I-2.0 J0 F700
+G1 Z-3.000 F250  ; pass 2
+G2 I-2.0 J0 F700
+G1 Z-4.500 F250  ; pass 3
+G2 I-2.0 J0 F700
+G1 Z-6.000 F250  ; pass 4
+G2 I-2.0 J0 F700
+G1 Z-6.500 F250  ; pass 5
+G2 I-2.0 J0 F700
+G2 I-2.0 J0 F700  ; spring pass
+G0 Z5.0
 
-; -----------------------------------------------
-; TAB RIGHT HOLE  6mm diameter  orbit radius 2mm
-; position: X6.35 Y44.514
-; -----------------------------------------------
+; ====================================================
+; TAB RIGHT  6.0mm diameter  orbit radius 2.0mm
+; center: X6.35 Y44.514
+; ====================================================
+G0 Z5.0
 G0 X6.35 Y44.514
-G1 Z-1.5 F250
-G1 X8.35 F700
-G2 I-2 J0
-G1 X6.35
-G1 Z-3.0 F250
-G1 X8.35 F700
-G2 I-2 J0
-G1 X6.35
-G1 Z-4.5 F250
-G1 X8.35 F700
-G2 I-2 J0
-G1 X6.35
-G1 Z-6.5 F250
-G1 X8.35 F700
-G2 I-2 J0
-G2 I-2 J0     ; spring pass
-G1 X6.35
-G0 Z5
+G0 X8.35 Y44.514
+G1 Z-1.500 F250  ; pass 1
+G2 I-2.0 J0 F700
+G1 Z-3.000 F250  ; pass 2
+G2 I-2.0 J0 F700
+G1 Z-4.500 F250  ; pass 3
+G2 I-2.0 J0 F700
+G1 Z-6.000 F250  ; pass 4
+G2 I-2.0 J0 F700
+G1 Z-6.500 F250  ; pass 5
+G2 I-2.0 J0 F700
+G2 I-2.0 J0 F700  ; spring pass
+G0 Z5.0
 
-; -----------------------------------------------
-; TAB LEFT HOLE  6mm diameter  orbit radius 2mm
-; position: X-6.35 Y44.514
-; -----------------------------------------------
+; ====================================================
+; TAB LEFT  6.0mm diameter  orbit radius 2.0mm
+; center: X-6.35 Y44.514
+; ====================================================
+G0 Z5.0
 G0 X-6.35 Y44.514
-G1 Z-1.5 F250
-G1 X-4.35 F700
-G2 I-2 J0
-G1 X-6.35
-G1 Z-3.0 F250
-G1 X-4.35 F700
-G2 I-2 J0
-G1 X-6.35
-G1 Z-4.5 F250
-G1 X-4.35 F700
-G2 I-2 J0
-G1 X-6.35
-G1 Z-6.5 F250
-G1 X-4.35 F700
-G2 I-2 J0
-G2 I-2 J0     ; spring pass
-G1 X-6.35
-G0 Z5
+G0 X-4.35 Y44.514
+G1 Z-1.500 F250  ; pass 1
+G2 I-2.0 J0 F700
+G1 Z-3.000 F250  ; pass 2
+G2 I-2.0 J0 F700
+G1 Z-4.500 F250  ; pass 3
+G2 I-2.0 J0 F700
+G1 Z-6.000 F250  ; pass 4
+G2 I-2.0 J0 F700
+G1 Z-6.500 F250  ; pass 5
+G2 I-2.0 J0 F700
+G2 I-2.0 J0 F700  ; spring pass
+G0 Z5.0
 
 M5          ; spindle off
 G0 X0 Y0    ; return home
