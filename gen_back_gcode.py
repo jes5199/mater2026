@@ -57,6 +57,15 @@ DEPTH_PER_PASS_MILL = 0.25
 DEPTH_PER_PASS_PROFILE = 0.20
 PROFILE_TOTAL = BRASS_T + 0.25   # through brass + into fixture
 
+# Acrylic-test parameters
+ACR_T               = 6.0
+ACR_TOTAL           = 6.5      # through 6mm acrylic + 0.5mm into spoiler
+ACR_RPM             = 20000
+ACR_FEED_ORBIT      = 700
+ACR_FEED_PROFILE    = 600
+ACR_FEED_PLUNGE     = 250
+ACR_DEPTH_PER_PASS  = 1.5
+
 SAFE_Z = 5.0
 
 
@@ -67,6 +76,11 @@ SAFE_Z = 5.0
 def xy(svg_x, svg_y):
     """SVG coords -> machine coords for the *back* (flipped) side."""
     return (-(svg_x - CX), -(svg_y - CY))
+
+
+def xy_front(svg_x, svg_y):
+    """SVG coords -> machine coords for the *front* side (no X flip)."""
+    return (svg_x - CX, -(svg_y - CY))
 
 
 # ---------------------------------------------------------------------------
@@ -650,12 +664,127 @@ def gen_profile():
 
 
 # ---------------------------------------------------------------------------
+# acrylic-02-full  one-shot test cut: holes + perimeter, 2mm bit only
+# ---------------------------------------------------------------------------
+
+def gen_acrylic_full():
+    """Single-file test cut for 6mm acrylic: drills all four registration
+    holes and then cuts the outer perimeter, all with the 2mm bit and a
+    single Z reference at the top of the acrylic.
+
+    No flip — the part comes out in the natural design orientation.
+    Assumes the acrylic is clamped from above onto something that protects
+    the bed for the final 0.5mm of each cut (the printed fixture plate
+    placed loose underneath works fine).
+    """
+    out = header(
+        title="Acrylic test piece: 4 registration holes + outer perimeter",
+        tool="2mm single flute spiral end mill",
+        mat="6mm acrylic clamped from above",
+        z0="top of acrylic",
+        rpm=ACR_RPM,
+    )
+    # Override the back-side comment from header() (no flip on this file)
+    out[3] = "; X0 Y0 = plate center (no flip)"
+    out += [
+        f"; Total cut depth: {ACR_TOTAL}mm (through 6mm acrylic + 0.5mm into spoiler)",
+        f"; Reduce ACR_TOTAL to ~5.8 in gen_back_gcode.py if you have NO spoiler",
+        f"; under the acrylic, to leave a thin web that protects the bed.",
+        ";",
+        f"; Hole orbits (2mm bit, 1mm radius):",
+        f";   center 3.3mm hole -> orbit radius 0.65mm",
+        f";   tab    6.0mm hole -> orbit radius 2.00mm",
+        ";",
+        f"; Perimeter is offset OUTWARD by {BIT2_R}mm so the part lands at design size.",
+        f"; After perimeter releases, the part is loose — your clamps must NOT be",
+        f"; over the part itself, but anchored to the surrounding waste.",
+        "",
+    ]
+
+    def hole(cx, cy, orbit_r, label):
+        out.append(f"; ---- {label}: X{cx} Y{cy}, orbit r={orbit_r}mm ----")
+        out.append(f"G0 Z{SAFE_Z}")
+        out.append(f"G0 X{cx} Y{cy}")
+        out.append(f"G0 X{cx + orbit_r} Y{cy}")
+        z = -ACR_DEPTH_PER_PASS
+        pass_n = 1
+        while z > -ACR_TOTAL + 1e-9:
+            out.append(f"G1 Z{z:.4f} F{ACR_FEED_PLUNGE}  ; pass {pass_n}")
+            out.append(f"G2 I-{orbit_r} J0 F{ACR_FEED_ORBIT}")
+            z -= ACR_DEPTH_PER_PASS
+            pass_n += 1
+        out.append(f"G1 Z-{ACR_TOTAL} F{ACR_FEED_PLUNGE}  ; final depth")
+        out.append(f"G2 I-{orbit_r} J0 F{ACR_FEED_ORBIT}")
+        out.append(f"G2 I-{orbit_r} J0 F{ACR_FEED_ORBIT}  ; spring pass")
+        out.append(f"G0 Z{SAFE_Z}")
+        out.append("")
+
+    hole(   0.000,  0.000, 0.65, "CENTER 3.3mm")
+    hole(   0.000, 50.864, 2.0,  "TAB CENTER 6.0mm")
+    hole(   6.350, 44.514, 2.0,  "TAB RIGHT 6.0mm")
+    hole(  -6.350, 44.514, 2.0,  "TAB LEFT 6.0mm")
+
+    # Outer perimeter
+    out.append("; ---- OUTER PERIMETER (releases the part) ----")
+    svg = os.path.join(REPO, "dial-plate-path.svg")
+    paths = paths_with_stroke(svg, "#808000")
+    best, best_len = None, 0
+    for d in paths:
+        polys = flatten_path(d, step=0.25)
+        if not polys: continue
+        poly = polys[0]
+        L = sum(math.hypot(poly[i+1][0]-poly[i][0],
+                           poly[i+1][1]-poly[i][1])
+                for i in range(len(poly)-1))
+        if L > best_len:
+            best_len, best = L, poly
+
+    mx_my = [xy_front(p[0], p[1]) for p in best]
+    mx_my = offset_polyline_outward(mx_my, BIT2_R)
+
+    # depth levels
+    z_levels = []
+    z = -ACR_DEPTH_PER_PASS
+    while z > -ACR_TOTAL + 1e-9:
+        z_levels.append(round(z, 4))
+        z -= ACR_DEPTH_PER_PASS
+    z_levels.append(-ACR_TOTAL)
+
+    sx, sy = mx_my[0]
+    out.append(f"G0 Z{SAFE_Z}")
+    out.append(f"G0 X{sx:.4f} Y{sy:.4f}")
+    last_feed = None
+    for z in z_levels:
+        out.append("")
+        out.append(f"; ---- depth Z{z} ----")
+        if last_feed != ACR_FEED_PLUNGE:
+            out.append(f"G1 Z{z:.4f} F{ACR_FEED_PLUNGE}")
+            last_feed = ACR_FEED_PLUNGE
+        else:
+            out.append(f"G1 Z{z:.4f}")
+        first = True
+        for x, y in mx_my[1:]:
+            if first and last_feed != ACR_FEED_PROFILE:
+                out.append(f"G1 X{x:.4f} Y{y:.4f} F{ACR_FEED_PROFILE}")
+                last_feed = ACR_FEED_PROFILE
+            else:
+                out.append(f"X{x:.4f} Y{y:.4f}")
+            first = False
+        if (mx_my[-1][0]-sx)**2 + (mx_my[-1][1]-sy)**2 > 1e-6:
+            out.append(f"X{sx:.4f} Y{sy:.4f}")
+
+    out += footer()
+    return "\n".join(out) + "\n"
+
+
+# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 
 def main():
     os.makedirs(GCODE, exist_ok=True)
     files = {
+        "acrylic-02-full.nc":                 gen_acrylic_full(),
         "brass-03-pocket-back.nc":            gen_pocket(),
         "brass-04-engrave-back-ticks.nc":     gen_ticks(),
         "brass-05-engrave-back-letters.nc":   gen_letters(),

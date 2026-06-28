@@ -1,22 +1,38 @@
-// Registration pin for 6mm jig holes
-// Oriented flange-down for printing (no supports needed)
-// Adjust tolerance until you get a snug slip fit — try -0.15 first
+// Registration pin for 6mm tab holes
+//
+// Pin shaft length is sized so that when the pin is fully inserted, its
+// bottom is flush with the underside of the fixture plate (i.e. touching
+// the Carvera Air bed) AND the flange just lands on top of the workpiece.
+// That way the flange actually clamps the work down, not floats above it.
+//
+// shaft_length = fixture_t + workpiece_t
+//
+// Set workpiece_t below for whichever stock you're cutting and re-export.
+// Oriented flange-down for printing — no supports needed.
+
+// ----- Parameters -----
+
+fixture_t      = 2.0;        // your printed fixture plate thickness
+workpiece_t    = 4.7625;     // 3/16" brass.  For the acrylic test, use 6.0.
 
 hole_diameter  = 6.0;
-tolerance      = -0.15;  // make more negative if loose, toward 0 if too tight
+tolerance      = -0.15;      // make more negative if loose, toward 0 if too tight
 
 shaft_d        = hole_diameter + tolerance;
-shaft_length   = 12.0;   // brass 4.76mm + acrylic 6mm + a little past
-flange_d       = 9.0;    // wide enough to rest on top of brass
+shaft_length   = fixture_t + workpiece_t;
+
+flange_d       = 9.0;        // wide enough to rest on top of brass
 flange_h       = 2.0;
-chamfer_h      = 0.8;    // lead-in taper at insertion tip
+chamfer_h      = 0.8;        // lead-in taper at insertion tip
 
 $fn = 64;
 
-// flange on floor, shaft pointing up
+// ----- Geometry -----
+
+// flange on the print bed, shaft pointing up
 rotate([180, 0, 0])
 translate([0, 0, -(shaft_length + flange_h)]) {
-    // flange (sits on top surface of brass)
+    // flange (sits on top surface of workpiece)
     translate([0, 0, shaft_length])
         cylinder(d=flange_d, h=flange_h);
 

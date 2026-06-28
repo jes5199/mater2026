@@ -19,7 +19,7 @@
 
 // ----- Parameters -----
 
-plate_t   = 2;     // plate thickness (mm)
+plate_t   = 5;     // plate thickness (mm)
 tolerance = 0.1;   // added to registration hole diameters for FDM shrinkage
                    // increase toward 0.2 if holes print tight
 
