@@ -1,0 +1,40 @@
+Circle measurements for mater-plate-back-12-3mm.svg
+All units in mm. SVG coordinates use mm (25.4 units/inch).
+
+Plate center: (66.675, 66.675)
+Plate body radius: 41.275mm (82.55mm diameter)
+
+---
+
+CENTER CIRCLE (path3802-1)
+  Radius:   1.5mm (3mm diameter)
+  Position: plate center (66.675, 66.675)
+
+---
+
+4 RING CIRCLES (circle10/12/14/16) — N/S/E/W at 90° intervals
+  Radius:              1mm (2mm diameter) each
+  Orbit radius:        38.163mm from plate center
+  Adjacent chord:      53.97mm center-to-center (across 90°)
+  Gap from center circle edge to ring circle edge: 35.66mm
+
+  circle10 (bottom): cx=66.675, cy=104.838
+  circle12 (top):    cx=66.675, cy=28.511
+  circle14 (left):   cx=28.511, cy=66.675
+  circle16 (right):  cx=104.838, cy=66.675
+
+---
+
+3 TOP TAB CIRCLES (circle411/415/419) — in the three tab features at the top
+  Radius: 3mm (6mm diameter) each
+
+  circle411 (top center): cx=66.675, cy=15.811  — 50.864mm from plate center
+  circle415 (top right):  cx=73.025, cy=22.161  — 44.964mm from plate center
+  circle419 (top left):   cx=60.325, cy=22.161  — 44.964mm from plate center
+
+  Distances center-to-center between top circles:
+    center ↔ right: 8.98mm
+    center ↔ left:  8.98mm
+    right  ↔ left:  12.70mm  (same Y coordinate)
+
+  Tab arc radius (from outer path): 6.35mm
