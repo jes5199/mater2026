@@ -57,13 +57,6 @@ DEPTH_PER_PASS_MILL = 0.25
 DEPTH_PER_PASS_PROFILE = 0.20
 PROFILE_TOTAL = BRASS_T + 0.25   # through brass + into fixture
 
-# Pre-rounding for sharp design corners (tab base, tab shoulder).
-# Replaces each sharp turn with a tangent arc of this radius BEFORE
-# the perpendicular offset.  Must be > BIT2_R so the offset arc has
-# physical clearance — and so the resulting part has a visible,
-# intentional fillet instead of a bit-radius "tooling artefact" curve.
-DESIGN_FILLET_R = 3.0
-
 # Acrylic-test parameters
 ACR_T               = 6.0
 ACR_TOTAL           = 6.5      # through 6mm acrylic + 0.5mm into spoiler
@@ -337,164 +330,14 @@ def signed_area(poly):
     return s / 2.0
 
 
-def round_sharp_corners(poly, fillet_radius, sharp_turn_deg=15.0,
-                        arc_chord=0.1):
-    """Replace each sharp turn in a closed polyline with a tangent arc
-    of `fillet_radius`.  Handles densely-sampled polylines: walks back
-    along the polyline from the sharp vertex until the tangent point on
-    the *local edge direction at the sharp vertex* is reached, then
-    discards everything between the two tangent points and substitutes
-    the fillet arc.
-
-    A pre-processing step before outward offset; gives the toolpath
-    deliberate smooth fillets at design corners instead of relying on
-    the machine to blend a sharp turn."""
-
-    eps = 1e-4
-    verts = []
-    for p in poly:
-        if not verts or math.hypot(p[0] - verts[-1][0],
-                                   p[1] - verts[-1][1]) > eps:
-            verts.append(p)
-    if len(verts) > 1 and math.hypot(verts[0][0] - verts[-1][0],
-                                     verts[0][1] - verts[-1][1]) < eps:
-        verts.pop()
-    n = len(verts)
-    if n < 3:
-        return list(poly)
-
-    threshold = math.radians(sharp_turn_deg)
-
-    # 1.  Find every sharp vertex and compute its fillet (replacement
-    #     arc + tangent points).  Express each tangent point as a
-    #     fractional polyline index so we can slice the polyline cleanly.
-    fillets = []   # list of (sharp_idx, start_idx_float, end_idx_float, arc_points)
-
-    def edge_dir(i):
-        a, b = verts[i % n], verts[(i + 1) % n]
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        L = math.hypot(dx, dy) or 1.0
-        return dx / L, dy / L, L
-
-    for i in range(n):
-        # turn at vertex i: between edge (i-1) and edge i
-        ux1, uy1, _ = edge_dir(i - 1)
-        ux2, uy2, _ = edge_dir(i)
-        cross = ux1 * uy2 - uy1 * ux2
-        dot   = ux1 * ux2 + uy1 * uy2
-        turn  = math.atan2(cross, dot)
-        if abs(turn) <= threshold:
-            continue
-
-        # Required tangent distance along each adjacent line.
-        t_req = fillet_radius / math.tan(abs(turn) / 2.0)
-
-        # Walk back from vertex i along the polyline accumulating arc
-        # length until we've covered t_req.  Project each step onto the
-        # *local edge direction at i* so the tangent line is consistent.
-        # (For densely-sampled smooth curves this is close enough.)
-        b = verts[i]
-        # walk backwards
-        dist = 0.0
-        j = i
-        while dist < t_req and j > i - n + 1:
-            prev = verts[(j - 1) % n]
-            curr = verts[j % n]
-            seg = math.hypot(curr[0] - prev[0], curr[1] - prev[1])
-            if dist + seg >= t_req:
-                frac = (t_req - dist) / seg
-                start_idx = (j - 1) + (1 - frac)   # j - frac
-                p_start = (curr[0] + (prev[0] - curr[0]) * frac,
-                           curr[1] + (prev[1] - curr[1]) * frac)
-                break
-            dist += seg
-            j -= 1
-        else:
-            # ran out of polyline; skip this fillet
-            continue
-
-        # walk forwards
-        dist = 0.0
-        k = i
-        while dist < t_req and k < i + n - 1:
-            curr = verts[k % n]
-            nxt  = verts[(k + 1) % n]
-            seg = math.hypot(nxt[0] - curr[0], nxt[1] - curr[1])
-            if dist + seg >= t_req:
-                frac = (t_req - dist) / seg
-                end_idx = k + frac
-                p_end = (curr[0] + (nxt[0] - curr[0]) * frac,
-                         curr[1] + (nxt[1] - curr[1]) * frac)
-                break
-            dist += seg
-            k += 1
-        else:
-            continue
-
-        # The fillet's local tangent direction at p_start is the unit
-        # vector from p_start toward b (the sharp vertex).  Similarly at
-        # p_end it's the unit vector from b toward p_end.
-        tx1, ty1 = b[0] - p_start[0], b[1] - p_start[1]
-        Lt1 = math.hypot(tx1, ty1) or 1.0
-        tx1, ty1 = tx1 / Lt1, ty1 / Lt1
-        tx2, ty2 = p_end[0] - b[0], p_end[1] - b[1]
-        Lt2 = math.hypot(tx2, ty2) or 1.0
-        tx2, ty2 = tx2 / Lt2, ty2 / Lt2
-        # Re-derive turn from these clean tangent directions
-        cross_t = tx1 * ty2 - ty1 * tx2
-        dot_t   = tx1 * tx2 + ty1 * ty2
-        turn_t  = math.atan2(cross_t, dot_t)
-        sign = 1.0 if turn_t > 0 else -1.0
-        # Arc centre: 90 deg from incoming tangent, on the side opposite the turn.
-        cx = p_start[0] + (-ty1) * sign * fillet_radius
-        cy = p_start[1] + ( tx1) * sign * fillet_radius
-        a1 = math.atan2(p_start[1] - cy, p_start[0] - cx)
-        a2 = math.atan2(p_end[1]   - cy, p_end[0]   - cx)
-        if sign > 0:
-            while a2 < a1: a2 += 2 * math.pi
-        else:
-            while a2 > a1: a2 -= 2 * math.pi
-        sweep = a2 - a1
-        n_seg = max(2, int(abs(sweep) * fillet_radius / arc_chord))
-        arc_pts = []
-        for kk in range(n_seg + 1):
-            t_ang = a1 + sweep * kk / n_seg
-            arc_pts.append((cx + fillet_radius * math.cos(t_ang),
-                            cy + fillet_radius * math.sin(t_ang)))
-        fillets.append((i, start_idx, end_idx, arc_pts))
-
-    if not fillets:
-        return list(verts) + [verts[0]]
-
-    # 2. Rebuild the polyline.  Walk vertices in order; when we hit a
-    #    fillet's start_idx, skip ahead to its end_idx and emit the arc.
-    out = []
-    fillets.sort(key=lambda f: f[1])
-    fi = 0
-    i = 0
-    while i < n:
-        # Is the next fillet's start within the current vertex or just after?
-        if fi < len(fillets):
-            sharp_idx, start_idx, end_idx, arc_pts = fillets[fi]
-            if start_idx < i + 1:   # fillet starts inside [i, i+1)
-                # emit nothing from this vertex; emit the arc
-                out.extend(arc_pts)
-                # skip vertices up to end_idx
-                i = int(math.floor(end_idx)) + 1
-                fi += 1
-                continue
-        out.append(verts[i])
-        i += 1
-
-    return out + [out[0]]
-
-
 def offset_polyline_outward(poly, distance):
     """Outward offset of a closed polygon by `distance` using Shapely.
 
-    The polygon is buffered with round joins.  Because we pre-round the
-    sharp design corners with `round_sharp_corners`, the offset has no
-    sharp turns either — it's a smooth offset of a smooth design."""
+    The polygon is buffered with round joins, i.e. the Minkowski sum of the
+    part region with a disc of radius `distance` (the bit radius).  This is
+    plunge-safe by construction: convex corners get a clean bit-radius arc,
+    and the tool is never sent into a concave valley narrower than the bit,
+    so no separate corner pre-rounding of the source outline is required."""
     from shapely.geometry import Polygon
 
     eps = 1e-4
@@ -763,10 +606,12 @@ def gen_profile():
         "",
     ]
 
-    # transform polyline to machine coords, pre-round sharp corners so the
-    # toolpath has no abrupt direction changes, then offset outward by bit radius
+    # transform polyline to machine coords, then offset outward by bit radius.
+    # The outward buffer (Minkowski sum with the bit disc) is plunge-safe by
+    # construction — it rounds convex corners with a bit-radius arc and never
+    # lets the tool reach into a concave valley narrower than the bit — so no
+    # separate corner pre-rounding is needed.
     mx_my = [xy(p[0], p[1]) for p in best]
-    mx_my = round_sharp_corners(mx_my, DESIGN_FILLET_R)
     mx_my = offset_polyline_outward(mx_my, BIT2_R)
 
     # rapid to start
@@ -874,8 +719,10 @@ def gen_acrylic_full():
         if L > best_len:
             best_len, best = L, poly
 
+    # Plunge-safe outward offset (see gen_profile): the buffer already rounds
+    # convex corners and limits the tool at concave valleys, so no separate
+    # corner pre-rounding is needed.
     mx_my = [xy_front(p[0], p[1]) for p in best]
-    mx_my = round_sharp_corners(mx_my, DESIGN_FILLET_R)
     mx_my = offset_polyline_outward(mx_my, BIT2_R)
 
     # depth levels
