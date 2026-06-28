@@ -10,9 +10,10 @@
 // ...assuming workpiece center at bed position (75, 80).
 // If you position the plate differently on the bed, update mount_holes below.
 //
-// NOTE: mount_d is set for M4 clearance (4.5mm). The Carvera Air bed holes
-// appear as 6mm in the STEP model but may be tapped M4 — verify on the machine
-// and change mount_d to 6.5 if they are actually M6.
+// Carvera Air bed holes are M5 threaded. The STEP model shows 6mm circles
+// at 2mm depth — these appear to be the bosses/standoffs around the M5 holes,
+// not the holes themselves. The 4mm dowel pin locations are not modeled in
+// the simplified STEP file.
 //
 // Print flat (largest face down). No supports needed.
 
@@ -42,7 +43,7 @@ mount_holes = [
     [  5, -50],   // bed hole (80,  30)
     [ 50,  -5],   // bed hole (125, 75)
 ];
-mount_d = 4.5;   // M4 clearance — change to 6.5 if bed holes are M6
+mount_d = 5.5;   // M5 clearance (Carvera Air bed is M5 threaded)
 
 // ----- Geometry -----
 
