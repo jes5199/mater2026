@@ -1,0 +1,40 @@
+Carvera Air bed hole positions
+Source: Carvera_Air_Bed_Model_Tomblarom.stp (MakeraInc/CarveraProfiles on GitHub)
+
+All holes are 6mm diameter.
+23 holes total, irregular pattern (not a regular grid).
+Bed extent: X 7.5-133.5mm, Y 7.5-141mm
+
+Coordinates are in mm from the bed origin (front-left corner).
+
+    X       Y
+  -----   -----
+    7.5    85.0
+    7.5    96.0
+   10.5   120.0
+   12.0    45.0
+   30.0     7.5
+   45.0    12.0
+   45.0    52.5
+   45.0    75.0
+   45.0   120.0
+   80.0    30.0
+   80.0    75.0
+   80.0   120.0
+   85.0     7.5
+   96.0     7.5
+   96.0   130.0
+   96.0   141.0
+  100.5    90.0
+  118.5    52.5
+  125.0    10.5
+  125.0    30.0
+  125.0    75.0
+  125.0   120.0
+  133.5    57.0
+
+Notes:
+- Holes are M6 (6mm diameter), likely tapped
+- The pattern is irregular — not suitable as a repeatable grid reference on its own
+- To re-register the MDF wasteboard between sessions, bolt it to two or more
+  of these holes and record which ones you used
