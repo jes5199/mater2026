@@ -384,16 +384,42 @@ def paths_with_stroke(svg_path, color):
     return out
 
 
+def paths_excluding_stroke(svg_path, color):
+    """Return the d-attributes of every <path> whose style does NOT include
+    the given stroke colour (in document order, deduped by id).  Used for the
+    front engraving: take all the line-art but skip the cut/drill features,
+    which carry the olive #808000 stroke.  <circle> elements (the holes /
+    registration marks) are not <path>s and so are excluded automatically."""
+    with open(svg_path) as f:
+        s = f.read()
+    blocks = re.findall(r'<path\b[^>]*?>', s, re.DOTALL)
+    out = []
+    seen = set()
+    for b in blocks:
+        if 'stroke:' + color in b:
+            continue
+        m = re.search(r'\bid="([^"]+)"', b)
+        if m:
+            if m.group(1) in seen:
+                continue
+            seen.add(m.group(1))
+        d = re.search(r'\bd="([^"]+)"', b)
+        if d:
+            out.append(d.group(1))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # G-code emitters
 # ---------------------------------------------------------------------------
 
-def header(title, tool, mat, z0, rpm):
+def header(title, tool, mat, z0, rpm,
+           origin="plate center (BACK SIDE - brass flipped left-right)"):
     return [
         f"; {title}",
         f"; Tool: {tool}",
         f"; Material: {mat}",
-        f"; X0 Y0 = plate center (BACK SIDE - brass flipped left-right)",
+        f"; X0 Y0 = {origin}",
         f"; Z0 = {z0}",
         "",
         "G21       ; metric",
@@ -417,15 +443,18 @@ def footer():
 
 def emit_engrave_polylines(lines, polylines_svg, z_top, z_engrave,
                            feed_engrave=FEED_ENGRAVE,
-                           feed_plunge=FEED_PLUNGE):
+                           feed_plunge=FEED_PLUNGE,
+                           transform=xy):
     """Add engrave moves for a list of polylines (in SVG coords).
-    Transforms to machine coords and emits a single down-pass per polyline.
+    Transforms to machine coords (via `transform`, default the back/flipped
+    `xy`; pass `xy_front` for natural front-side orientation) and emits a
+    single down-pass per polyline.
     Emits modal G-code: feed only when it changes."""
     last_feed = None
     for poly in polylines_svg:
         if len(poly) < 2:
             continue
-        x0, y0 = xy(*poly[0])
+        x0, y0 = transform(*poly[0])
         lines.append(f"G0 Z{SAFE_Z}")
         lines.append(f"G0 X{x0:.4f} Y{y0:.4f}")
         if last_feed != feed_plunge:
@@ -435,7 +464,7 @@ def emit_engrave_polylines(lines, polylines_svg, z_top, z_engrave,
             lines.append(f"G1 Z{z_engrave:.4f}")
         first = True
         for px, py in poly[1:]:
-            mx, my = xy(px, py)
+            mx, my = transform(px, py)
             if first and last_feed != feed_engrave:
                 lines.append(f"G1 X{mx:.4f} Y{my:.4f} F{feed_engrave}")
                 last_feed = feed_engrave
@@ -557,6 +586,51 @@ def gen_letters():
     ]
     emit_engrave_polylines(out, polylines, z_top=0.0,
                            z_engrave=z_engrave)
+    out += footer()
+    return "\n".join(out) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# brass-02  front-side engraving (line-art on the natural-orientation face)
+# ---------------------------------------------------------------------------
+
+def gen_front_engrave():
+    """Front-side engraving of the dial face.
+
+    This is the FIRST operation on the visible face, done BEFORE the brass is
+    flipped left-right for the back-side ops.  It therefore uses the natural,
+    *un-mirrored* coordinate frame (`xy_front`, X not negated) — unlike every
+    back-side file which uses the flipped `xy`.  Same plate centre (CX,CY) and
+    same Inkscape page frame as the back SVGs (identical viewBox), so X0 Y0 is
+    the plate centre for both.
+
+    Source: mater-plate-back-12-3mm.svg (the front-side design per README).
+    Engrave every line-art path; skip the olive #808000 cut/drill features
+    (outer profile + holes) which are produced by brass-01 / brass-06.
+    """
+    svg = os.path.join(REPO, "mater-plate-back-12-3mm.svg")
+    paths = paths_excluding_stroke(svg, "#808000")
+    polylines = []
+    for d in paths:
+        polylines += flatten_path(d, step=0.1)
+
+    out = header(
+        title="Front side engraving (dial face)",
+        tool="30 deg x 0.2mm single flute engraving bit for metal",
+        mat="3/16\" brass (front face, before flip)",
+        z0="top of brass",
+        rpm=RPM_ENGRAVE,
+        origin="plate center (FRONT SIDE - natural orientation, NOT flipped)",
+    )
+    out += [
+        f"; {len(paths)} line-art paths from mater-plate-back-12-3mm.svg",
+        f"; (olive #808000 outline/holes skipped — see brass-01 / brass-06)",
+        f"; Engraving depth {ENGRAVE_DEPTH}mm below brass surface",
+        f"; FRONT orientation: X is NOT mirrored (xy_front); back files are.",
+        "",
+    ]
+    emit_engrave_polylines(out, polylines, z_top=0.0,
+                           z_engrave=-ENGRAVE_DEPTH, transform=xy_front)
     out += footer()
     return "\n".join(out) + "\n"
 
@@ -768,6 +842,7 @@ def main():
     os.makedirs(GCODE, exist_ok=True)
     files = {
         "acrylic-02-full.nc":                 gen_acrylic_full(),
+        "brass-02-engrave-front.nc":          gen_front_engrave(),
         "brass-03-pocket-back.nc":            gen_pocket(),
         "brass-04-engrave-back-ticks.nc":     gen_ticks(),
         "brass-05-engrave-back-letters.nc":   gen_letters(),
