@@ -69,6 +69,18 @@ ACR_DEPTH_PER_PASS  = 1.5
 SAFE_Z = 5.0          # rapid clearance during the job
 POST_JOB_Z = 25.0     # higher lift at end-of-job, in case workpiece moved
 
+# Engraving inter-contour motion.  ENGRAVE_HOP is an ABSOLUTE retract height
+# above the stock top (Z0) used when hopping between the many engrave contours
+# — small, because the engraving face is flat and nothing protrudes above the
+# stock in the tool path (fixturing is the 3 tab pins + perimeter waste).  It
+# also clears the shallow back-side pocket (1.6mm deep) when reaching in for
+# the letters.  Raise it if a clamp is ever placed over the engraving field.
+# ENGRAVE_PLUNGE_CLEAR: rapid (G0) down to this height above the *local*
+# feature surface, then feed (G1) only the final approach — so we no longer
+# creep the whole 5mm of air down at the slow plunge feed.
+ENGRAVE_HOP = 1.0
+ENGRAVE_PLUNGE_CLEAR = 0.5
+
 
 # ---------------------------------------------------------------------------
 # Coordinate transform
@@ -449,14 +461,24 @@ def emit_engrave_polylines(lines, polylines_svg, z_top, z_engrave,
     Transforms to machine coords (via `transform`, default the back/flipped
     `xy`; pass `xy_front` for natural front-side orientation) and emits a
     single down-pass per polyline.
+
+    Between contours the tool hops to ENGRAVE_HOP (a small absolute clearance
+    above the stock top), rapids in XY, then rapids straight down to
+    ENGRAVE_PLUNGE_CLEAR above the *local* feature surface and only feeds
+    (G1 at feed_plunge) the final approach to z_engrave.  The feature surface
+    is one ENGRAVE_DEPTH above the cut depth (Z0 for surface engraving, the
+    pocket floor for the letters), so the slow plunge is ~the engrave depth +
+    the clearance instead of the full retract height.
     Emits modal G-code: feed only when it changes."""
+    approach_z = z_engrave + ENGRAVE_DEPTH + ENGRAVE_PLUNGE_CLEAR
     last_feed = None
     for poly in polylines_svg:
         if len(poly) < 2:
             continue
         x0, y0 = transform(*poly[0])
-        lines.append(f"G0 Z{SAFE_Z}")
+        lines.append(f"G0 Z{ENGRAVE_HOP}")
         lines.append(f"G0 X{x0:.4f} Y{y0:.4f}")
+        lines.append(f"G0 Z{approach_z:.4f}")
         if last_feed != feed_plunge:
             lines.append(f"G1 Z{z_engrave:.4f} F{feed_plunge}")
             last_feed = feed_plunge
@@ -471,7 +493,7 @@ def emit_engrave_polylines(lines, polylines_svg, z_top, z_engrave,
             else:
                 lines.append(f"X{mx:.4f} Y{my:.4f}")
             first = False
-    lines.append(f"G0 Z{SAFE_Z}")
+    lines.append(f"G0 Z{ENGRAVE_HOP}")
 
 
 # ---------------------------------------------------------------------------
